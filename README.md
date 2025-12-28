@@ -458,7 +458,19 @@ docker compose exec app curl http://api:8000/health
 - **Firewall**: Ensure the chosen port is allowed in Synology's firewall settings if you want to access from other devices on your network.
 - **IP Address**: Replace `192.168.100.110` with your actual Synology NAS IP address. You can find it in DSM under Control Panel → Network → Network Interface.
 - **Persistent Data**: All data (database, Redis, static files) will be stored in `./data/` directory in the Readdig folder. Ensure sufficient storage space.
-- **Updates**: To update the application, SSH to your NAS, navigate to the readdig directory, run `git pull`, then `docker compose down && docker compose build && docker compose up -d`.
+- **Updates**: To update the application:
+  ```bash
+  # Navigate to readdig directory
+  cd /volume1/docker/readdig
+  
+  # Pull latest changes
+  git pull
+  
+  # Rebuild and restart services
+  docker compose down
+  docker compose build
+  docker compose up -d
+  ```
 - **Accessing from Internet**: For external access, configure port forwarding in your router and consider using a reverse proxy with SSL/TLS for security.
 
 #### Troubleshooting on Synology NAS
