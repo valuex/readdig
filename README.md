@@ -357,9 +357,11 @@ In `api/.env`, configure with your local network IP:
 NODE_ENV=production
 PRODUCT_URL=http://192.168.100.110:5233
 PRODUCT_NAME=Readdig
-USER_AGENT=ReaddigBot/1.0
+USER_AGENT=ReaddigBot/1.0 (http://192.168.100.110:5233)
 JWT_SECRET=your-secure-jwt-secret-here
 ```
+
+> **Note**: For local network deployments, use your actual local IP in the PRODUCT_URL and USER_AGENT instead of a public domain name.
 
 Set up App environment:
 ```bash
@@ -375,6 +377,8 @@ REACT_APP_PRODUCT_NAME=Readdig
 REACT_APP_PRODUCT_DESCRIPTION=Readdig - RSS and Podcast Reader
 REACT_APP_API_URL=http://192.168.100.110:5233/api
 ```
+
+> **Note**: For local network deployments, use your actual local IP in the URLs instead of a public domain name.
 
 **5. Configure Nginx**
 
