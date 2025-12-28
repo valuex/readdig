@@ -95,21 +95,22 @@ The app will be available at `http://localhost:3000`
 
 ### Docker Deployment
 
+This project provides a unified Docker setup at the root level that orchestrates all services (API, App, Redis, PostgreSQL) in a single configuration.
+
 #### 1. Clone Repository
 
 ```bash
-git clone <your-repository-url>
+git clone https://github.com/readdig/readdig.git
 cd readdig
 ```
 
 #### 2. Configure API Service
 
 ```bash
-cd api
+# Copy API environment configuration
+cp .env.api.example api/.env
 
-# Copy configuration templates
-cp .env.example .env
-cp docker-compose.yml.example docker-compose.yml
+# Copy PM2 production configuration
 cp ecosystem.prod.config.js.example ecosystem.prod.config.js
 ```
 
@@ -118,7 +119,6 @@ Edit `api/.env`:
 ```bash
 # Production environment
 NODE_ENV=production
-
 
 # Product Information
 PRODUCT_URL=https://www.readdig.com
@@ -147,47 +147,13 @@ PADDLE_VENDOR_AUTH_CODE=your-auth-code
 SENTRY_DSN=your-sentry-dsn
 ```
 
-Edit `api/docker-compose.yml` to set a secure database password:
-
-```yaml
-api:
-  environment:
-    DATABASE_URL: postgresql://readdig:your-secure-password@database:5432/readdig
-
-database:
-  environment:
-    POSTGRES_PASSWORD: your-secure-password
-```
-
-**Important**: Make sure the database password in `database.environment.POSTGRES_PASSWORD` matches the one in `api.environment.DATABASE_URL`
-
-**Note**: Redis runs without password in the internal Docker network, which is secure for private deployments.
-
-#### 3. Start API Services
+#### 3. Configure App Service
 
 ```bash
-# Build and start all services (API, PostgreSQL, Redis)
-docker-compose up -d
+# Copy App environment configuration
+cp .env.app.example app/.env
 
-# Check service status
-docker-compose ps
-
-# View logs
-docker-compose logs -f api
-```
-
-The API will be available at `http://localhost:8000`
-
-**Note**: Database migrations will run automatically when the API container starts.
-
-#### 4. Configure App Service
-
-```bash
-cd ../app
-
-# Copy configuration templates
-cp .env.example .env
-cp docker-compose.yml.example docker-compose.yml
+# Copy Nginx configuration
 cp nginx.conf.example nginx.conf
 ```
 
@@ -211,7 +177,7 @@ REACT_APP_SENTRY_DSN=your-sentry-dsn
 REACT_APP_PADDLE_VENDOR_ID=your-paddle-vendor-id
 ```
 
-Edit `app/nginx.conf` (replace domain names):
+Edit `nginx.conf` (replace domain names):
 
 ```nginx
 server {
@@ -251,40 +217,90 @@ server {
 ```
 
 **Notes**:
-- This is the Nginx configuration **inside the app Docker container**
 - Replace `yourdomain.com` with your actual domain name
 - The first server block redirects non-www to www
 - `proxy_pass http://api:8000/` - points to the API container (using Docker network name)
 - The trailing slash in `/api/` and `http://api:8000/` is important - it removes `/api` prefix when forwarding
-- For production deployments with external reverse proxy, you may need to adjust this configuration
 
-#### 5. Build and Start App Service
+#### 4. Configure Database Password
 
-```bash
-# Build the app (compiles React with environment variables)
-docker-compose build
+Edit `docker-compose.yml` to set a secure database password:
 
-# Start the app service
-docker-compose up -d
+```yaml
+api:
+  environment:
+    DATABASE_URL: postgresql://readdig:your-secure-password@database:5432/readdig
 
-# View logs
-docker-compose logs -f app
+database:
+  environment:
+    POSTGRES_PASSWORD: your-secure-password
 ```
 
-The frontend will be available at `http://localhost:80`
+**Important**: Make sure the database password in `database.environment.POSTGRES_PASSWORD` matches the one in `api.environment.DATABASE_URL`
+
+**Note**: Redis runs without password in the internal Docker network, which is secure for private deployments.
+
+#### 5. Build and Start All Services
+
+```bash
+# Build all services (API and App)
+docker compose build
+
+# Start all services (API, App, PostgreSQL, Redis)
+docker compose up -d
+
+# Check service status
+docker compose ps
+
+# View logs for all services
+docker compose logs -f
+
+# View logs for specific service
+docker compose logs -f api
+docker compose logs -f app
+```
+
+The services will be available at:
+- **Frontend**: `http://localhost:80`
+- **API**: `http://localhost:8000` (internally accessible from app container)
+
+**Note**: Database migrations will run automatically when the API container starts.
 
 #### 6. Verify Deployment
 
 ```bash
-# Check API health
-curl http://localhost:8000/health
+# Check API health (from within the container network)
+docker compose exec app curl http://api:8000/health
 
 # Expected response: {"status":"ok"}
 ```
 
 Open your browser:
 - Frontend: `http://localhost:80`
-- API: `http://localhost:8000`
+
+#### Alternative: Individual Service Deployment
+
+If you prefer to deploy API and App services separately (e.g., for different servers), you can still use the individual Docker configurations in the `api/` and `app/` directories:
+
+**API Service:**
+```bash
+cd api
+cp .env.example .env
+cp docker-compose.yml.example docker-compose.yml
+cp ecosystem.prod.config.js.example ecosystem.prod.config.js
+# Edit configurations as needed
+docker compose up -d
+```
+
+**App Service:**
+```bash
+cd app
+cp .env.example .env
+cp docker-compose.yml.example docker-compose.yml
+cp nginx.conf.example nginx.conf
+# Edit configurations as needed
+docker compose up -d
+```
 
 ## Configuration
 
@@ -321,12 +337,12 @@ For production, use a reverse proxy Nginx on your host to:
 - Route requests to appropriate services
 - Serve both app and API from the same domain
 
-**Important**: This is the **host-level reverse proxy** configuration, separate from the `nginx.conf` inside the app Docker container. The architecture is:
+**Important**: This is the **host-level reverse proxy** configuration, separate from the `nginx.conf` (in the root directory) that's used inside the app Docker container. The architecture is:
 
 ```
 Internet → Host Nginx (SSL/proxy) → Docker Containers
                 ├─ App container (port 80)
-                └─ API container (port 8000)
+                └─ API container (accessible via backend network)
 ```
 
 
@@ -334,36 +350,44 @@ Internet → Host Nginx (SSL/proxy) → Docker Containers
 
 | Configuration | Location | Purpose |
 |--------------|----------|---------|
-| `app/nginx.conf` | Inside app Docker container | Serves React static files and proxies `/api/` to backend container |
+| `nginx.conf` (root) | Inside app Docker container | Serves React static files and proxies `/api/` to backend container |
+| Host Nginx config | On host server | Handles SSL/TLS and routes traffic to Docker containers |
 
 **Deployment scenarios**:
-- **Local development**: Only `app/nginx.conf` needed (no SSL)
-- **Production with Docker only**: Only `app/nginx.conf` needed (add SSL to Docker config)
-- **Production with host reverse proxy** (recommended): Both configs needed - host Nginx handles SSL, `app/nginx.conf` handles internal routing
+- **Local development**: Only `nginx.conf` needed (no SSL)
+- **Production with Docker only**: Only `nginx.conf` needed (add SSL to Docker config)
+- **Production with host reverse proxy** (recommended): Both configs needed - host Nginx handles SSL, `nginx.conf` handles internal routing
 
 ## Maintenance
 
 ### View Logs
 
 ```bash
+# All services logs
+docker compose logs -f
+
 # API logs
-cd api && docker-compose logs -f api
+docker compose logs -f api
 
 # App logs
-cd app && docker-compose logs -f app
+docker compose logs -f app
 
 # Database logs
-cd api && docker-compose logs -f database
+docker compose logs -f database
+
+# Redis logs
+docker compose logs -f cache
 ```
 
 ### Restart Services
 
 ```bash
-# Restart API
-cd api && docker-compose restart api
+# Restart all services
+docker compose restart
 
-# Restart App
-cd app && docker-compose restart app
+# Restart specific service
+docker compose restart api
+docker compose restart app
 ```
 
 ### Update Application
@@ -372,17 +396,14 @@ cd app && docker-compose restart app
 # Pull latest code
 git pull
 
-# Update API
-cd api
-docker-compose down
-docker-compose build --no-cache
-docker-compose up -d
+# Rebuild and restart all services
+docker compose down
+docker compose build --no-cache
+docker compose up -d
 
-# Update App (requires rebuild when env vars change)
-cd ../app
-docker-compose down
-docker-compose build --no-cache
-docker-compose up -d
+# Or update specific service
+docker compose build --no-cache api
+docker compose up -d api
 ```
 
 ### Backup Database
