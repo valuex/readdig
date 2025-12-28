@@ -309,6 +309,8 @@ docker compose up -d
 
 Deploying Readdig on Synology NAS allows you to access your RSS reader via your local network (e.g., `http://192.168.100.110:5233`).
 
+> **📝 Note**: Throughout this section, we use `192.168.100.110` as an example IP address and `5233` as an example port. **Replace these with your actual Synology NAS IP address and your chosen port** when following the instructions.
+
 #### Prerequisites
 
 - Synology NAS with Docker package installed
