@@ -1,0 +1,67 @@
+# Node modules
+node_modules
+
+# Build artifacts
+build
+dist
+
+# Docker files
+Dockerfile
+.dockerignore
+docker-compose.yml
+docker-compose.yml.example
+
+# Environment and config files
+.env
+.env.*
+.env.example
+.env.api.example
+.env.app.example
+
+# PM2 config files (exclude dev config and examples)
+ecosystem.dev.config.js
+ecosystem.prod.config.js.example
+
+# Nginx config examples
+nginx.conf.example
+
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Development files
+test
+*.test.js
+*.spec.js
+coverage
+public/electron.js
+public/preload.js
+public/actions.js
+electron-builder.yaml
+
+# Documentation
+README.md
+*.md
+LICENSE
+
+# Logs
+logs
+*.log
+
+# Data directories
+data
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# CloudFlare worker
+cloudflare_worker

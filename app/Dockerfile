@@ -1,3 +1,7 @@
+# NOTE: This is the standalone Dockerfile for App service only.
+# For unified deployment with all services (API, App, Redis, PostgreSQL),
+# use the combined Dockerfile and docker-compose.yml at the root level.
+#
 # Use the latest version of Node
 FROM node:20-alpine AS builder
 

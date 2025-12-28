@@ -63,6 +63,7 @@ typings/
 .env
 .env.*
 !.env.example
+!.env.*.example
 
 # System
 .DS_Store
@@ -107,8 +108,7 @@ nginx.conf
 # PM2 Configurations
 ecosystem.prod.config.js
 
-# Docker Compose
-docker-compose.yml
+# Docker Compose (exclude only in subdirectories)
 api/docker-compose.yml
 app/docker-compose.yml
 
