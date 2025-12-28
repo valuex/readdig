@@ -10,6 +10,7 @@ Readdig is an RSS and Podcast reader application.
 - [Installation](#installation)
   - [Development Setup](#development-setup)
   - [Docker Deployment](#docker-deployment)
+  - [Synology NAS Deployment](#synology-nas-deployment)
 - [Configuration](#configuration)
 - [Maintenance](#maintenance)
 - [Troubleshooting](#troubleshooting)
@@ -96,6 +97,8 @@ The app will be available at `http://localhost:3000`
 ### Docker Deployment
 
 This project provides a unified Docker setup at the root level that orchestrates all services (API, App, Redis, PostgreSQL) in a single configuration.
+
+> **📌 Synology NAS Deployment**: If you're deploying on Synology NAS using Docker, see the [Synology NAS Deployment](#synology-nas-deployment) section below for specific instructions on configuring local network access (e.g., `http://192.168.100.110:5233`).
 
 #### 1. Clone Repository
 
@@ -301,6 +304,206 @@ cp nginx.conf.example nginx.conf
 # Edit configurations as needed
 docker compose up -d
 ```
+
+### Synology NAS Deployment
+
+Deploying Readdig on Synology NAS allows you to access your RSS reader via your local network (e.g., `http://192.168.100.110:5233`).
+
+> **📝 Note**: Throughout this section, we use `192.168.100.110` as an example IP address and `5233` as an example port. **Replace these with your actual Synology NAS IP address and your chosen port** when following the instructions.
+
+#### Prerequisites
+
+- Synology NAS with Docker package installed
+- SSH access to your Synology NAS (or use File Station to transfer files)
+- Basic knowledge of terminal commands
+
+#### Deployment Steps
+
+**1. Access Your Synology NAS**
+
+SSH into your Synology NAS or use the File Station:
+```bash
+ssh admin@192.168.100.110
+```
+
+**2. Clone the Repository**
+
+```bash
+cd /volume1/docker  # or your preferred location
+git clone https://github.com/readdig/readdig.git
+cd readdig
+```
+
+**3. Configure Port Mapping**
+
+Edit `docker-compose.yml` to use a custom port (e.g., 5233 instead of 80):
+
+```yaml
+app:
+  ports:
+    - '5233:80'  # Change from default '80:80' to your preferred port
+```
+
+**4. Configure Environment Variables**
+
+Set up API environment:
+```bash
+cp .env.api.example api/.env
+nano api/.env  # or use File Station editor
+```
+
+In `api/.env`, configure with your local network IP:
+```bash
+NODE_ENV=production
+PRODUCT_URL=http://192.168.100.110:5233
+PRODUCT_NAME=Readdig
+USER_AGENT=ReaddigBot/1.0 (http://192.168.100.110:5233)
+JWT_SECRET=your-secure-jwt-secret-here
+```
+
+> **Note**: For local network deployments, use your actual local IP in the PRODUCT_URL and USER_AGENT instead of a public domain name.
+
+Set up App environment:
+```bash
+cp .env.app.example app/.env
+nano app/.env
+```
+
+In `app/.env`, configure with your local network IP:
+```bash
+NODE_ENV=production
+REACT_APP_PRODUCT_URL=http://192.168.100.110:5233
+REACT_APP_PRODUCT_NAME=Readdig
+REACT_APP_PRODUCT_DESCRIPTION=Readdig - RSS and Podcast Reader
+REACT_APP_API_URL=http://192.168.100.110:5233/api
+```
+
+> **Note**: For local network deployments, use your actual local IP in the URLs instead of a public domain name.
+
+**5. Configure Nginx**
+
+```bash
+cp nginx.conf.example nginx.conf
+nano nginx.conf
+```
+
+Update the server name to your local IP:
+```nginx
+server {
+  listen 80;
+  server_name 192.168.100.110;
+
+  location / {
+    root /usr/share/nginx/html;
+    try_files $uri $uri/ /index.html =404;
+  }
+
+  location /api/ {
+    proxy_pass http://api:8000/;
+    proxy_http_version  1.1;
+    proxy_cache_bypass  $http_upgrade;
+
+    proxy_set_header Upgrade            $http_upgrade;
+    proxy_set_header Connection         "upgrade";
+    proxy_set_header Host               $host;
+    proxy_set_header X-Real-IP          $remote_addr;
+    proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto  $scheme;
+    proxy_set_header X-Forwarded-Host   $host;
+    proxy_set_header X-Forwarded-Port   $server_port;
+  }
+}
+```
+
+**6. Configure PM2 and Database**
+
+```bash
+cp ecosystem.prod.config.js.example ecosystem.prod.config.js
+```
+
+Update database password in `docker-compose.yml`:
+```yaml
+api:
+  environment:
+    DATABASE_URL: postgresql://readdig:your-secure-password@database:5432/readdig
+
+database:
+  environment:
+    POSTGRES_PASSWORD: your-secure-password
+```
+
+**7. Build and Start Services**
+
+```bash
+docker compose build
+docker compose up -d
+```
+
+**8. Access Your Application**
+
+Open your browser and navigate to:
+- **From same local network**: `http://192.168.100.110:5233` (replace with your NAS IP and port)
+- **From NAS itself**: `http://localhost:5233`
+
+**9. Verify Deployment**
+
+```bash
+# Check service status
+docker compose ps
+
+# View logs
+docker compose logs -f
+
+# Test API health
+docker compose exec app curl http://api:8000/health
+```
+
+#### Important Notes for Synology NAS
+
+- **Port Selection**: Choose a port that's not already in use on your NAS (e.g., 5233, 8080, 3000). Avoid common ports like 80, 443, 5000, 5001 which may be used by DSM.
+- **Firewall**: Ensure the chosen port is allowed in Synology's firewall settings if you want to access from other devices on your network.
+- **IP Address**: Replace `192.168.100.110` with your actual Synology NAS IP address. You can find it in DSM under Control Panel → Network → Network Interface.
+- **Persistent Data**: All data (database, Redis, static files) will be stored in `./data/` directory in the Readdig folder. Ensure sufficient storage space.
+- **Updates**: To update the application:
+  ```bash
+  # Navigate to readdig directory
+  cd /volume1/docker/readdig
+  
+  # Pull latest changes
+  git pull
+  
+  # Rebuild and restart services
+  docker compose down
+  docker compose build
+  docker compose up -d
+  ```
+- **Accessing from Internet**: For external access, configure port forwarding in your router and consider using a reverse proxy with SSL/TLS for security.
+
+#### Troubleshooting on Synology NAS
+
+**Port Already in Use:**
+```bash
+# Find what's using the port
+sudo netstat -tlnp | grep :5233
+
+# Choose a different port in docker-compose.yml
+```
+
+**Cannot Access from Browser:**
+1. Verify the NAS IP address: `ip addr show`
+2. Check if containers are running: `docker compose ps`
+3. Check firewall rules in DSM: Control Panel → Security → Firewall
+4. Try accessing from the NAS itself: `curl http://localhost:5233`
+
+**Insufficient Permissions:**
+```bash
+# Run commands with sudo if needed
+sudo docker compose up -d
+```
+
+**Out of Memory:**
+1. Check available resources in DSM Resource Monitor
+2. Consider reducing the number of worker processes in `ecosystem.prod.config.js`
 
 ## Configuration
 
